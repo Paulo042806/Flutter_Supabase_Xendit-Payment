@@ -1,51 +1,84 @@
+
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/product_model.dart';
 
 class PaymentService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  static final SupabaseClient _supabase =
+      Supabase.instance.client;
 
-  // 1. Get all products for the store catalog
-  Future<List<Product>> fetchProducts() async {
-    final response = await _supabase
-        .from('products')
-        .select()
-        .order('id', ascending: true);
+  static Future<Map<String, dynamic>> checkout(
+    List<Map<String, dynamic>> items, {
+    required String fullName,
+    required String phone,
+    required String address,
+    required String notes,
+    required String paymentMethod,
+  }) async {
+    if (items.isEmpty) {
+      throw Exception('Your cart is empty.');
+    }
 
-    return (response as List)
-        .map((item) => Product.fromMap(item as Map<String, dynamic>))
-        .toList();
-  }
+    final user = _supabase.auth.currentUser;
 
-  // 2. Trigger the 'create-invoice' Edge Function in Supabase
-  Future<Map<String, dynamic>> createInvoice(Product product) async {
-    final FunctionResponse res = await _supabase.functions.invoke(
-      'create-invoice',
+    if (user == null) {
+      throw Exception('Please log in before checking out.');
+    }
+
+    final response = await _supabase.functions.invoke(
+      'create-xendit-checkout',
       body: {
-        'product_name': product.name,
-        'amount': product.price,
+        'items': items,
+        'full_name': fullName,
+        'phone': phone,
+        'delivery_address': address,
+        'delivery_notes': notes,
+        'payment_method': paymentMethod,
       },
     );
 
-    if (res.status != 200) {
-      throw Exception('Failed to create invoice: ${res.data}');
+    final responseData = response.data;
+
+    if (responseData is! Map) {
+      throw Exception(
+        'Invalid response from checkout server.',
+      );
     }
 
-    return res.data as Map<String, dynamic>;
+    final data = Map<String, dynamic>.from(responseData);
+
+    if (response.status < 200 || response.status >= 300) {
+      throw Exception(
+        data['error']?.toString() ?? 'Checkout failed.',
+      );
+    }
+
+    if (data['error'] != null) {
+      throw Exception(data['error'].toString());
+    }
+
+    // COD does not require a Xendit checkout URL.
+    if (paymentMethod == 'cod') {
+      if (data['order_id'] == null) {
+        throw Exception('The order was not confirmed by the server.');
+      }
+
+      return data;
+    }
+
+    // Online payments require a checkout URL.
+    final checkoutUrl = data['checkout_url']?.toString();
+
+    if (checkoutUrl == null ||
+        checkoutUrl.isEmpty ||
+        !checkoutUrl.startsWith('https://')) {
+      throw Exception(
+        'A valid Xendit checkout URL was not returned.',
+      );
+    }
+
+    return data;
   }
 
-  // 3. Check if the webhook updated the order to PAID
-  Future<String> checkOrderStatus(String externalId) async {
-    final record = await _supabase
-        .from('orders')
-        .select('status')
-        .eq('external_id', externalId)
-        .single();
-
-    return record['status'] ?? 'PENDING';
-  }
-
-  // 4. Get all orders for the Order History screen
-  Future<List<Map<String, dynamic>>> fetchOrders() async {
+  static Future<List<Map<String, dynamic>>> fetchOrders() async {
     final response = await _supabase
         .from('orders')
         .select()
