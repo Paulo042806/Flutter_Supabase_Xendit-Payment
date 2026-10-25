@@ -1,29 +1,23 @@
-
-class ProductModel {
-  final String id;
+class Product {
+  final int id;
   final String name;
-  final String brand;
-  final String? description;
-  final int price;
-  final String? imageUrl;
+  final num price;
+  final String imageUrl;
 
-  ProductModel({
+  Product({
     required this.id,
     required this.name,
-    required this.brand,
-    this.description,
     required this.price,
-    this.imageUrl,
+    required this.imageUrl,
   });
 
-  factory ProductModel.fromMap(Map<String, dynamic> map) {
-    return ProductModel(
-      id: map['id']?.toString() ?? '',
-      name: map['name']?.toString() ?? 'Unnamed Product',
-      brand: map['brand']?.toString() ?? 'Unknown',
-      description: map['description']?.toString(),
-      price: (map['price'] as num?)?.toInt() ?? 0,
-      imageUrl: map['image_url']?.toString(),
+  // Converts a raw database Map from Supabase into a safe Dart object
+  factory Product.fromMap(Map<String, dynamic> map) {
+    return Product(
+      id: map['id'] ?? 0,
+      name: map['name'] ?? 'Unnamed Item',
+      price: map['price'] ?? 0,
+      imageUrl: map['image_url'] ?? '',
     );
   }
 }
