@@ -36,7 +36,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.18.3
   webview_flutter: ^4.14.1
-  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
